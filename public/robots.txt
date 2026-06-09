@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /scan
+Disallow: /history
+Disallow: /auth
