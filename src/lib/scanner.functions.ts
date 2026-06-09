@@ -81,8 +81,10 @@ export const runScanAndSave = createServerFn({ method: "POST" })
         url: v.url,
         hostname: v.hostname,
         score: score.total,
-        findings: findings as unknown as Record<string, unknown>,
-        ai_report: aiReport as unknown as Record<string, unknown>,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        findings: findings as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ai_report: aiReport as any,
       })
       .select("id, created_at")
       .single();
