@@ -77,6 +77,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Sentinel AI — Real Security Assessments" },
+      { name: "description", content: "Sentinel AI Insights provides real-time website security assessments and AI-driven remediation guidance." },
+      { property: "og:description", content: "Sentinel AI Insights provides real-time website security assessments and AI-driven remediation guidance." },
+      { name: "twitter:description", content: "Sentinel AI Insights provides real-time website security assessments and AI-driven remediation guidance." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/4c3618ab-05ab-4b7a-abfe-d1db4e39f6e0/id-preview-e7a370e0--aeb5374d-d825-4d75-b962-19eeb29d07a8.lovable.app-1780995562043.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/4c3618ab-05ab-4b7a-abfe-d1db4e39f6e0/id-preview-e7a370e0--aeb5374d-d825-4d75-b962-19eeb29d07a8.lovable.app-1780995562043.png" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
