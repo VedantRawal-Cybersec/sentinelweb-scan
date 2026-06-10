@@ -12,31 +12,47 @@ export async function generateAiReport(
 
   const failing = findings.filter((f) => f.severity !== "pass" && f.severity !== "info");
 
-  const system = `You are a senior application security consultant. The findings below come from REAL live scans (HTTP headers, TLS, DNS, IP reputation, robots.txt). Be specific to this domain. Give actionable remediation with code/config snippets. Avoid generic boilerplate. Output ONLY valid JSON matching the schema — no markdown, no prose around it.`;
+  const system = `You are a senior offensive-security consultant writing a deep, categorized assessment for engineers. Findings come from REAL live scans (HTTP headers, TLS, DNS, CORS, IP reputation, sensitive-file probing, mixed-content, open-redirect heuristics, robots.txt). Be highly specific to this domain. For every risk include: the attack vector, a realistic step-by-step exploitation walkthrough an attacker would take, the OWASP Top 10 (2021) category, a CWE id, and a CVSS-style severity. Output ONLY valid JSON matching the schema — no markdown.`;
 
   const user = `Domain: ${hostname}
 Security score: ${score}/100
 Findings (${failing.length} issues):
 
-${failing.map((f, i) => `${i + 1}. [${f.severity.toUpperCase()}] ${f.title} (category: ${f.category})\n   Detail: ${f.detail}\n   Recommendation: ${f.recommendation ?? "—"}`).join("\n\n")}
+${failing.map((f, i) => `${i + 1}. [${f.severity.toUpperCase()}] ${f.title} (category: ${f.category})\n   Detail: ${f.detail}\n   Suggested fix: ${f.recommendation ?? "—"}`).join("\n\n")}
 
-Return JSON with shape:
+Return JSON with this EXACT shape:
 {
-  "executiveSummary": "string, 2-3 sentences tailored to this domain",
+  "executiveSummary": "2-3 sentences tailored to ${hostname}",
   "topRisks": [
     {
       "title": "string",
       "severity": "Critical|High|Medium|Low",
-      "impact": "string — business/security impact",
-      "remediation": "string — concrete steps",
-      "estimatedEffort": "e.g. '15 minutes' or '2 hours'",
-      "codeExample": "optional config or code snippet"
+      "cvss": "e.g. 7.5 (CVSS 3.1)",
+      "owasp": "e.g. A05:2021 — Security Misconfiguration",
+      "cwe": "e.g. CWE-693",
+      "category": "Headers|TLS|DNS|Reputation|Exposure|Cookies|CORS|Email|Other",
+      "impact": "business + security impact, 1-2 sentences",
+      "attackVector": "1 sentence: how the attacker reaches this",
+      "exploitationSteps": ["step 1", "step 2", "step 3"],
+      "proofOfConcept": "short curl / payload / sample request demonstrating the attack",
+      "remediation": "concrete fix",
+      "codeExample": "config or code snippet implementing the fix",
+      "estimatedEffort": "e.g. '15 minutes'",
+      "references": ["url1", "url2"]
     }
   ],
-  "roadmap": "string — prioritized order of fixes, 1-2 sentences"
+  "categorizedFindings": {
+    "Headers": ["short bullet"],
+    "TLS": ["short bullet"],
+    "DNS/Email": ["short bullet"],
+    "Exposure": ["short bullet"],
+    "Reputation": ["short bullet"]
+  },
+  "attackerNarrative": "3-5 sentences telling the story of how an attacker would chain the worst findings end-to-end against ${hostname}.",
+  "roadmap": "Prioritized order of fixes, 2-3 sentences."
 }
 
-Focus on the top 5 risks. If there are fewer than 5 real risks, return fewer.`;
+Focus on up to 8 top risks. If fewer real risks exist, return fewer.`;
 
   const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
@@ -66,6 +82,8 @@ Focus on the top 5 risks. If there are fewer than 5 real risks, return fewer.`;
   return {
     executiveSummary: parsed.executiveSummary ?? "No summary generated.",
     topRisks: Array.isArray(parsed.topRisks) ? parsed.topRisks : [],
+    categorizedFindings: parsed.categorizedFindings ?? {},
+    attackerNarrative: parsed.attackerNarrative ?? "",
     roadmap: parsed.roadmap ?? "",
   };
 }
