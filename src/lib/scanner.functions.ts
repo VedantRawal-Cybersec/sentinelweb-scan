@@ -18,11 +18,21 @@ export interface AiReport {
   topRisks: Array<{
     title: string;
     severity: string;
+    cvss?: string;
+    owasp?: string;
+    cwe?: string;
+    category?: string;
     impact: string;
+    attackVector?: string;
+    exploitationSteps?: string[];
+    proofOfConcept?: string;
     remediation: string;
     estimatedEffort: string;
     codeExample?: string;
+    references?: string[];
   }>;
+  categorizedFindings?: Record<string, string[]>;
+  attackerNarrative?: string;
   roadmap: string;
 }
 
