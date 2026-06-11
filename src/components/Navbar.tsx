@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 const links = [
   { label: "Scan", href: "/scan" as const },
   { label: "History", href: "/history" as const },
+  { label: "Status", href: "/status" as const },
   { label: "About", href: "/#about" as const },
 ];
 

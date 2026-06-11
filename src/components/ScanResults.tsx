@@ -1,17 +1,23 @@
-import type { ScanResult } from "@/lib/scanner.functions";
+import type { ScanResult, HistoryBundle } from "@/lib/scanner.functions";
 import { SEVERITY_COLORS, type Finding } from "@/lib/scoring";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   ChevronDown, ChevronRight, ShieldCheck, ShieldAlert,
   AlertTriangle, Info, Brain, Sparkles, Crosshair, Bug, Target, Wrench, BookOpen,
+  History, ExternalLink, Filter, ArrowUpDown,
 } from "lucide-react";
 
+type Tab = "ai" | "history" | "raw";
+
+const SEV_ORDER: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4, pass: 5 };
+
 export function ScanResults({ result }: { result: ScanResult }) {
-  const { score, findings, hostname, aiReport } = result;
-  const grouped = groupByCategory(findings);
+  const { score, findings, hostname, aiReport, history } = result;
+  const [tab, setTab] = useState<Tab>("ai");
 
   return (
     <div className="space-y-6 md:space-y-8">
+      {/* Score card */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-px bg-border rounded-md overflow-hidden">
         <div className="lg:col-span-1 bg-card p-6 md:p-8 flex flex-col items-center justify-center">
           <ScoreRing score={score.total} />
@@ -26,99 +32,317 @@ export function ScanResults({ result }: { result: ScanResult }) {
         </div>
       </div>
 
-      {aiReport && (
-        <div className="border border-primary/30 bg-primary/[0.03] rounded-md p-5 md:p-8">
-          <div className="flex items-center gap-2 mb-4">
-            <Brain className="h-5 w-5 text-primary" />
-            <div className="text-xs uppercase tracking-[0.3em] text-primary">// AI Deep Assessment</div>
-            <Sparkles className="h-3.5 w-3.5 text-primary ml-auto" />
-          </div>
-          <p className="text-sm md:text-base leading-relaxed mb-6">{aiReport.executiveSummary}</p>
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-border overflow-x-auto -mx-1 px-1 scrollbar-thin">
+        <TabBtn active={tab === "ai"} onClick={() => setTab("ai")} icon={<Brain className="h-3.5 w-3.5" />}>AI Assessment</TabBtn>
+        <TabBtn active={tab === "history"} onClick={() => setTab("history")} icon={<History className="h-3.5 w-3.5" />}>
+          Bug History {history && (history.nvd.length + history.hackerone.length) > 0 ? <span className="ml-1 text-[10px] text-primary">{history.nvd.length + history.hackerone.length}</span> : null}
+        </TabBtn>
+        <TabBtn active={tab === "raw"} onClick={() => setTab("raw")} icon={<ShieldCheck className="h-3.5 w-3.5" />}>Raw Findings ({findings.length})</TabBtn>
+      </div>
 
-          {aiReport.attackerNarrative && (
-            <div className="mb-6 border border-critical/30 bg-critical/5 rounded-sm p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Crosshair className="h-4 w-4 text-critical" />
-                <div className="text-[10px] uppercase tracking-widest text-critical">Attacker Narrative</div>
-              </div>
-              <p className="text-sm leading-relaxed">{aiReport.attackerNarrative}</p>
-            </div>
+      {tab === "ai" && aiReport && <AiAssessment report={aiReport} />}
+      {tab === "ai" && !aiReport && <EmptyTab text="AI assessment unavailable." />}
+      {tab === "history" && <HistoryView history={history} hostname={hostname} />}
+      {tab === "raw" && <RawFindings findings={findings} />}
+    </div>
+  );
+}
+
+function TabBtn({ active, onClick, icon, children }: { active: boolean; onClick: () => void; icon: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-2 px-4 py-2.5 text-xs uppercase tracking-widest whitespace-nowrap border-b-2 transition ${
+        active ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      {icon}{children}
+    </button>
+  );
+}
+
+function EmptyTab({ text }: { text: string }) {
+  return <div className="border border-dashed border-border rounded-md p-10 text-center text-sm text-muted-foreground">{text}</div>;
+}
+
+/* -------- AI Assessment with filters -------- */
+
+function AiAssessment({ report }: { report: NonNullable<ScanResult["aiReport"]> }) {
+  const [sevFilter, setSevFilter] = useState<string | null>(null);
+  const [catFilter, setCatFilter] = useState<string | null>(null);
+  const [owaspFilter, setOwaspFilter] = useState<string | null>(null);
+  const [cweFilter, setCweFilter] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<"severity" | "effort">("severity");
+
+  const { categories, owasps, cwes } = useMemo(() => {
+    const cats = new Set<string>();
+    const ow = new Set<string>();
+    const cw = new Set<string>();
+    for (const r of report.topRisks) {
+      if (r.category) cats.add(r.category);
+      if (r.owasp) ow.add(r.owasp);
+      if (r.cwe) cw.add(r.cwe);
+    }
+    return { categories: [...cats].sort(), owasps: [...ow].sort(), cwes: [...cw].sort() };
+  }, [report.topRisks]);
+
+  const filtered = useMemo(() => {
+    const list = report.topRisks.filter((r) => {
+      if (sevFilter && r.severity.toLowerCase() !== sevFilter) return false;
+      if (catFilter && r.category !== catFilter) return false;
+      if (owaspFilter && r.owasp !== owaspFilter) return false;
+      if (cweFilter && r.cwe !== cweFilter) return false;
+      return true;
+    });
+    if (sortBy === "severity") {
+      list.sort((a, b) => (SEV_ORDER[a.severity.toLowerCase()] ?? 9) - (SEV_ORDER[b.severity.toLowerCase()] ?? 9));
+    }
+    return list;
+  }, [report.topRisks, sevFilter, catFilter, owaspFilter, cweFilter, sortBy]);
+
+  const anyFilter = sevFilter || catFilter || owaspFilter || cweFilter;
+
+  return (
+    <div className="border border-primary/30 bg-primary/[0.03] rounded-md p-5 md:p-8">
+      <div className="flex items-center gap-2 mb-4">
+        <Brain className="h-5 w-5 text-primary" />
+        <div className="text-xs uppercase tracking-[0.3em] text-primary">// AI Deep Assessment</div>
+        <Sparkles className="h-3.5 w-3.5 text-primary ml-auto" />
+      </div>
+      <p className="text-sm md:text-base leading-relaxed mb-6">{report.executiveSummary}</p>
+
+      {report.attackerNarrative && (
+        <div className="mb-6 border border-critical/30 bg-critical/5 rounded-sm p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Crosshair className="h-4 w-4 text-critical" />
+            <div className="text-[10px] uppercase tracking-widest text-critical">Attacker Narrative</div>
+          </div>
+          <p className="text-sm leading-relaxed">{report.attackerNarrative}</p>
+        </div>
+      )}
+
+      {/* Filter / sort controls */}
+      <div className="mb-4 space-y-2.5">
+        <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-muted-foreground">
+          <Filter className="h-3 w-3" /> Filter
+          {anyFilter && (
+            <button
+              onClick={() => { setSevFilter(null); setCatFilter(null); setOwaspFilter(null); setCweFilter(null); }}
+              className="ml-auto text-primary normal-case tracking-normal hover:underline"
+            >
+              clear all
+            </button>
           )}
+        </div>
 
-          <div className="space-y-3">
-            {aiReport.topRisks.map((r, i) => (
-              <details key={i} className="border border-border bg-background rounded-sm group" open={i === 0}>
-                <summary className="cursor-pointer list-none p-4 flex items-center gap-3 flex-wrap">
-                  <ChevronRight className="h-4 w-4 transition group-open:rotate-90 text-muted-foreground shrink-0" />
-                  <span className={`text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-sm border ${sevBadge(r.severity)}`}>{r.severity}</span>
-                  <span className="font-semibold text-sm flex-1 min-w-[12rem]">{r.title}</span>
-                  {r.cvss && <span className="text-[10px] font-mono text-muted-foreground">CVSS {r.cvss}</span>}
-                  <span className="text-xs text-muted-foreground">{r.estimatedEffort}</span>
-                </summary>
-                <div className="px-4 pb-4 md:pl-11 space-y-4 text-sm">
-                  <div className="flex flex-wrap gap-2 text-[10px]">
-                    {r.owasp && <span className="px-2 py-0.5 border border-border rounded-sm font-mono">{r.owasp}</span>}
-                    {r.cwe && <span className="px-2 py-0.5 border border-border rounded-sm font-mono">{r.cwe}</span>}
-                    {r.category && <span className="px-2 py-0.5 border border-border rounded-sm font-mono">{r.category}</span>}
-                  </div>
+        <ChipRow label="Severity" value={sevFilter} setValue={setSevFilter} options={["critical","high","medium","low"]} />
+        {categories.length > 0 && <ChipRow label="Category" value={catFilter} setValue={setCatFilter} options={categories} />}
+        {owasps.length > 0 && <ChipRow label="OWASP" value={owaspFilter} setValue={setOwaspFilter} options={owasps} mono />}
+        {cwes.length > 0 && <ChipRow label="CWE" value={cweFilter} setValue={setCweFilter} options={cwes} mono />}
 
-                  <Field icon={<Target className="h-3.5 w-3.5" />} label="Impact">{r.impact}</Field>
-                  {r.attackVector && <Field icon={<Crosshair className="h-3.5 w-3.5" />} label="Attack vector">{r.attackVector}</Field>}
+        <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-muted-foreground pt-1">
+          <ArrowUpDown className="h-3 w-3" /> Sort
+          <button
+            onClick={() => setSortBy(sortBy === "severity" ? "effort" : "severity")}
+            className="ml-1 normal-case tracking-normal text-primary hover:underline"
+          >
+            by {sortBy}
+          </button>
+          <span className="ml-auto font-mono normal-case tracking-normal">{filtered.length}/{report.topRisks.length}</span>
+        </div>
+      </div>
 
-                  {r.exploitationSteps && r.exploitationSteps.length > 0 && (
-                    <div>
-                      <Label icon={<Bug className="h-3.5 w-3.5" />}>Exploitation steps</Label>
-                      <ol className="mt-2 space-y-1.5 list-decimal list-inside text-sm text-foreground/90">
-                        {r.exploitationSteps.map((s, k) => <li key={k}>{s}</li>)}
-                      </ol>
-                    </div>
-                  )}
-
-                  {r.proofOfConcept && (
-                    <div>
-                      <Label icon={<Bug className="h-3.5 w-3.5" />}>Proof of concept</Label>
-                      <pre className="bg-secondary p-3 rounded-sm text-xs font-mono overflow-x-auto whitespace-pre-wrap mt-2">{r.proofOfConcept}</pre>
-                    </div>
-                  )}
-
-                  <Field icon={<Wrench className="h-3.5 w-3.5" />} label="Fix">{r.remediation}</Field>
-
-                  {r.codeExample && (
-                    <pre className="bg-secondary p-3 rounded-sm text-xs font-mono overflow-x-auto whitespace-pre-wrap">{r.codeExample}</pre>
-                  )}
-
-                  {r.references && r.references.length > 0 && (
-                    <div>
-                      <Label icon={<BookOpen className="h-3.5 w-3.5" />}>References</Label>
-                      <ul className="mt-1.5 space-y-1">
-                        {r.references.map((u, k) => (
-                          <li key={k}><a href={u} target="_blank" rel="noopener noreferrer" className="text-primary text-xs underline break-all">{u}</a></li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              </details>
-            ))}
+      <div className="space-y-3">
+        {filtered.length === 0 ? (
+          <div className="border border-dashed border-border rounded-sm p-6 text-center text-xs text-muted-foreground">
+            No risks match the current filters.
           </div>
+        ) : filtered.map((r, i) => <RiskRow key={`${r.title}-${i}`} r={r} defaultOpen={i === 0} />)}
+      </div>
 
-          {aiReport.roadmap && (
-            <div className="mt-6 pt-6 border-t border-border">
-              <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2">Roadmap</div>
-              <p className="text-sm">{aiReport.roadmap}</p>
+      {report.roadmap && (
+        <div className="mt-6 pt-6 border-t border-border">
+          <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2">Roadmap</div>
+          <p className="text-sm">{report.roadmap}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ChipRow({ label, value, setValue, options, mono = false }: {
+  label: string; value: string | null; setValue: (v: string | null) => void; options: string[]; mono?: boolean;
+}) {
+  return (
+    <div className="flex items-start gap-2">
+      <div className="text-[10px] uppercase tracking-widest text-muted-foreground pt-1.5 w-16 shrink-0">{label}</div>
+      <div className="flex flex-wrap gap-1.5 min-w-0">
+        {options.map((o) => {
+          const active = value === o;
+          return (
+            <button
+              key={o}
+              onClick={() => setValue(active ? null : o)}
+              className={`px-2.5 py-1 rounded-sm border text-[10px] uppercase tracking-widest transition ${mono ? "font-mono" : ""} ${
+                active ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
+              }`}
+            >
+              {o}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function RiskRow({ r, defaultOpen }: { r: NonNullable<ScanResult["aiReport"]>["topRisks"][number]; defaultOpen: boolean }) {
+  return (
+    <details className="border border-border bg-background rounded-sm group" open={defaultOpen}>
+      <summary className="cursor-pointer list-none p-4 flex items-center gap-3 flex-wrap">
+        <ChevronRight className="h-4 w-4 transition group-open:rotate-90 text-muted-foreground shrink-0" />
+        <span className={`text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-sm border ${sevBadge(r.severity)}`}>{r.severity}</span>
+        <span className="font-semibold text-sm flex-1 min-w-[10rem]">{r.title}</span>
+        {r.cvss && <span className="text-[10px] font-mono text-muted-foreground">CVSS {r.cvss}</span>}
+        <span className="text-xs text-muted-foreground">{r.estimatedEffort}</span>
+      </summary>
+      <div className="px-4 pb-4 md:pl-11 space-y-4 text-sm">
+        <div className="flex flex-wrap gap-2 text-[10px]">
+          {r.owasp && <span className="px-2 py-0.5 border border-border rounded-sm font-mono">{r.owasp}</span>}
+          {r.cwe && <span className="px-2 py-0.5 border border-border rounded-sm font-mono">{r.cwe}</span>}
+          {r.category && <span className="px-2 py-0.5 border border-border rounded-sm font-mono">{r.category}</span>}
+        </div>
+        <Field icon={<Target className="h-3.5 w-3.5" />} label="Impact">{r.impact}</Field>
+        {r.attackVector && <Field icon={<Crosshair className="h-3.5 w-3.5" />} label="Attack vector">{r.attackVector}</Field>}
+        {r.exploitationSteps && r.exploitationSteps.length > 0 && (
+          <div>
+            <Label icon={<Bug className="h-3.5 w-3.5" />}>Exploitation steps</Label>
+            <ol className="mt-2 space-y-1.5 list-decimal list-inside text-sm text-foreground/90">
+              {r.exploitationSteps.map((s, k) => <li key={k}>{s}</li>)}
+            </ol>
+          </div>
+        )}
+        {r.proofOfConcept && (
+          <div>
+            <Label icon={<Bug className="h-3.5 w-3.5" />}>Proof of concept</Label>
+            <pre className="bg-secondary p-3 rounded-sm text-xs font-mono overflow-x-auto whitespace-pre-wrap mt-2">{r.proofOfConcept}</pre>
+          </div>
+        )}
+        <Field icon={<Wrench className="h-3.5 w-3.5" />} label="Fix">{r.remediation}</Field>
+        {r.codeExample && (
+          <pre className="bg-secondary p-3 rounded-sm text-xs font-mono overflow-x-auto whitespace-pre-wrap">{r.codeExample}</pre>
+        )}
+        {r.references && r.references.length > 0 && (
+          <div>
+            <Label icon={<BookOpen className="h-3.5 w-3.5" />}>References</Label>
+            <ul className="mt-1.5 space-y-1">
+              {r.references.map((u, k) => (
+                <li key={k}><a href={u} target="_blank" rel="noopener noreferrer" className="text-primary text-xs underline break-all">{u}</a></li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    </details>
+  );
+}
+
+/* -------- History tab -------- */
+
+function HistoryView({ history, hostname }: { history: HistoryBundle | null | undefined; hostname: string }) {
+  if (!history || (history.nvd.length === 0 && history.hackerone.length === 0 && !history.aiContext)) {
+    return <EmptyTab text="No public bug-bounty / CVE history found for this domain." />;
+  }
+  return (
+    <div className="space-y-6">
+      {history.aiContext && (
+        <div className="border border-primary/30 bg-primary/[0.03] rounded-md p-5 md:p-6">
+          <div className="flex items-center gap-2 mb-3">
+            <Brain className="h-4 w-4 text-primary" />
+            <div className="text-[10px] uppercase tracking-[0.3em] text-primary">// Historical context for {hostname}</div>
+          </div>
+          <p className="text-sm leading-relaxed">{history.aiContext}</p>
+          {history.categorized && Object.keys(history.categorized).length > 0 && (
+            <div className="mt-5 space-y-3">
+              {Object.entries(history.categorized).map(([cat, bullets]) => (
+                bullets.length > 0 && (
+                  <div key={cat}>
+                    <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1.5">{cat}</div>
+                    <ul className="text-sm space-y-1 list-disc list-inside text-foreground/90">
+                      {bullets.map((b, i) => <li key={i}>{b}</li>)}
+                    </ul>
+                  </div>
+                )
+              ))}
             </div>
           )}
         </div>
       )}
 
-      <div className="space-y-4">
-        {Object.entries(grouped).map(([cat, items]) => (
-          <CategorySection key={cat} category={cat} findings={items} />
+      {history.nvd.length > 0 && (
+        <HistorySection title={`NVD CVEs (${history.nvd.length})`} items={history.nvd} />
+      )}
+      {history.hackerone.length > 0 && (
+        <HistorySection title={`HackerOne disclosed (${history.hackerone.length})`} items={history.hackerone} />
+      )}
+    </div>
+  );
+}
+
+function HistorySection({ title, items }: { title: string; items: HistoryBundle["nvd"] }) {
+  return (
+    <div className="border border-border bg-card rounded-md overflow-hidden">
+      <div className="px-5 py-3 border-b border-border text-[10px] uppercase tracking-[0.3em] text-muted-foreground">{title}</div>
+      <div className="divide-y divide-border">
+        {items.map((it) => (
+          <div key={it.id} className="p-4">
+            <div className="flex items-start gap-2 flex-wrap">
+              <span className="font-mono text-xs text-primary">{it.id}</span>
+              {it.severity && <span className="text-[10px] px-2 py-0.5 border border-border rounded-sm">{it.severity}</span>}
+              {it.publishedAt && <span className="text-[10px] text-muted-foreground">{new Date(it.publishedAt).toLocaleDateString()}</span>}
+              {it.url && (
+                <a href={it.url} target="_blank" rel="noopener noreferrer" className="ml-auto text-primary text-xs hover:underline inline-flex items-center gap-1">
+                  view <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+            </div>
+            {it.summary && <p className="text-xs text-muted-foreground mt-2 leading-relaxed">{it.summary}</p>}
+          </div>
         ))}
       </div>
     </div>
   );
 }
+
+/* -------- Raw findings tab with filters -------- */
+
+function RawFindings({ findings }: { findings: Finding[] }) {
+  const [catFilter, setCatFilter] = useState<string | null>(null);
+  const [sevFilter, setSevFilter] = useState<string | null>(null);
+
+  const cats = useMemo(() => [...new Set(findings.map((f) => f.category))], [findings]);
+  const filtered = useMemo(() => findings
+    .filter((f) => (!catFilter || f.category === catFilter) && (!sevFilter || f.severity === sevFilter))
+    .sort((a, b) => (SEV_ORDER[a.severity] ?? 9) - (SEV_ORDER[b.severity] ?? 9)),
+    [findings, catFilter, sevFilter]);
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2.5">
+        <ChipRow label="Category" value={catFilter} setValue={setCatFilter} options={cats} />
+        <ChipRow label="Severity" value={sevFilter} setValue={setSevFilter} options={["critical","high","medium","low","pass"]} />
+      </div>
+      <div className="border border-border rounded-md bg-card divide-y divide-border">
+        {filtered.length === 0 ? (
+          <div className="p-6 text-center text-sm text-muted-foreground">No findings match.</div>
+        ) : filtered.map((f) => <FindingRow key={f.id} f={f} />)}
+      </div>
+    </div>
+  );
+}
+
+/* -------- Shared bits -------- */
 
 function Label({ children, icon }: { children: React.ReactNode; icon: React.ReactNode }) {
   return (
@@ -169,32 +393,6 @@ function CategoryBar({ label, score }: { label: string; score: number }) {
   );
 }
 
-function CategorySection({ category, findings }: { category: string; findings: Finding[] }) {
-  const [open, setOpen] = useState(true);
-  const failing = findings.filter((f) => f.severity !== "pass").length;
-  return (
-    <div className="border border-border rounded-md bg-card overflow-hidden">
-      <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between p-4 hover:bg-secondary/30 transition">
-        <div className="flex items-center gap-3">
-          {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-          <span className="text-sm font-semibold uppercase tracking-widest">{category}</span>
-          <span className="text-xs text-muted-foreground">{findings.length} checks</span>
-        </div>
-        {failing > 0 ? (
-          <span className="text-xs text-critical">{failing} issue{failing > 1 ? "s" : ""}</span>
-        ) : (
-          <span className="text-xs text-success flex items-center gap-1"><ShieldCheck className="h-3.5 w-3.5" /> Clean</span>
-        )}
-      </button>
-      {open && (
-        <div className="divide-y divide-border">
-          {findings.map((f) => <FindingRow key={f.id} f={f} />)}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function FindingRow({ f }: { f: Finding }) {
   const Icon = f.severity === "pass" ? ShieldCheck : f.severity === "critical" || f.severity === "high" ? ShieldAlert : f.severity === "medium" ? AlertTriangle : Info;
   return (
@@ -204,6 +402,7 @@ function FindingRow({ f }: { f: Finding }) {
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-medium">{f.title}</span>
           <span className={`text-[9px] uppercase tracking-widest px-1.5 py-0.5 rounded-sm border ${sevBadge(f.severity)}`}>{f.severity}</span>
+          <span className="text-[9px] uppercase tracking-widest text-muted-foreground ml-auto">{f.category}</span>
         </div>
         <p className="text-xs text-muted-foreground mt-1 font-mono break-words whitespace-pre-wrap">{f.detail}</p>
         {f.recommendation && (
@@ -212,12 +411,6 @@ function FindingRow({ f }: { f: Finding }) {
       </div>
     </div>
   );
-}
-
-function groupByCategory(findings: Finding[]): Record<string, Finding[]> {
-  const out: Record<string, Finding[]> = {};
-  for (const f of findings) (out[f.category] ??= []).push(f);
-  return out;
 }
 
 function sevBadge(s: string): string {
