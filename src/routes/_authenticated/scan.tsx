@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation } from "@tanstack/react-query";
 import { Navbar } from "@/components/Navbar";
 import { ScanResults } from "@/components/ScanResults";
+import { LiveDashboard } from "@/components/LiveDashboard";
 import { runScanAndSave, type ScanResult } from "@/lib/scanner.functions";
 import { validateScanUrl } from "@/lib/url-validation";
 import { toast } from "sonner";
