@@ -83,7 +83,7 @@ function ScanPage() {
             </button>
           </form>
 
-          {mutation.isPending && <ScanningSkeleton />}
+          {mutation.isPending && <LiveDashboard active={mutation.isPending} />}
 
           {result && !mutation.isPending && (
             <ScanResults result={result} />
@@ -91,26 +91,6 @@ function ScanPage() {
 
           {!result && !mutation.isPending && <EmptyState onPickDemo={(d) => { setUrl(d); router.invalidate(); }} />}
         </div>
-      </div>
-    </div>
-  );
-}
-
-function ScanningSkeleton() {
-  const steps = ["Validating URL", "Inspecting TLS & headers", "Resolving DNS & email posture", "Checking IP reputation", "Asking Gemini for remediation"];
-  return (
-    <div className="border border-border bg-card p-8 rounded-md">
-      <div className="flex items-center gap-3 mb-6">
-        <Loader2 className="h-5 w-5 animate-spin text-primary" />
-        <div className="text-sm font-semibold uppercase tracking-widest">Live Scan in Progress</div>
-      </div>
-      <div className="space-y-3">
-        {steps.map((s, i) => (
-          <div key={s} className="flex items-center gap-3 text-sm text-muted-foreground">
-            <div className="h-1 w-1 rounded-full bg-primary animate-pulse" style={{ animationDelay: `${i * 0.2}s` }} />
-            {s}
-          </div>
-        ))}
       </div>
     </div>
   );
