@@ -2,10 +2,12 @@ import type { ScanResult, HistoryBundle } from "@/lib/scanner.functions";
 import { SEVERITY_COLORS, type Finding } from "@/lib/scoring";
 import { useMemo, useState } from "react";
 import {
-  ChevronDown, ChevronRight, ShieldCheck, ShieldAlert,
+  ChevronRight, ShieldCheck, ShieldAlert,
   AlertTriangle, Info, Brain, Sparkles, Crosshair, Bug, Target, Wrench, BookOpen,
-  History, ExternalLink, Filter, ArrowUpDown,
+  History, ExternalLink, Filter, ArrowUpDown, Download,
 } from "lucide-react";
+import { ProofPanel, ProofBadge } from "./ProofPanel";
+
 
 type Tab = "ai" | "history" | "raw";
 
