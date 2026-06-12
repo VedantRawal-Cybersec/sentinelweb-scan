@@ -2,18 +2,45 @@ import type { ScanResult, HistoryBundle } from "@/lib/scanner.functions";
 import { SEVERITY_COLORS, type Finding } from "@/lib/scoring";
 import { useMemo, useState } from "react";
 import {
-  ChevronDown, ChevronRight, ShieldCheck, ShieldAlert,
+  ChevronRight, ShieldCheck, ShieldAlert,
   AlertTriangle, Info, Brain, Sparkles, Crosshair, Bug, Target, Wrench, BookOpen,
-  History, ExternalLink, Filter, ArrowUpDown,
+  History, ExternalLink, Filter, ArrowUpDown, Download,
 } from "lucide-react";
+import { ProofPanel, ProofBadge } from "./ProofPanel";
+
 
 type Tab = "ai" | "history" | "raw";
 
 const SEV_ORDER: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4, pass: 5 };
 
 export function ScanResults({ result }: { result: ScanResult }) {
-  const { score, findings, hostname, aiReport, history } = result;
+  const { score, findings, hostname, aiReport, history, url } = result;
   const [tab, setTab] = useState<Tab>("ai");
+
+  const proofSummary = useMemo(() => {
+    const acc: Record<string, number> = { verified: 0, "high-confidence": 0, potential: 0, "needs-review": 0, "encoded-safe": 0, "not-vulnerable": 0 };
+    for (const f of findings) if (f.proof) acc[f.proof.level] = (acc[f.proof.level] ?? 0) + 1;
+    return acc;
+  }, [findings]);
+
+  function exportProofReport() {
+    const payload = {
+      generatedAt: new Date().toISOString(),
+      target: { url, hostname },
+      score,
+      proofSummary,
+      findings: findings.map((f) => ({
+        id: f.id, title: f.title, category: f.category, severity: f.severity,
+        detail: f.detail, recommendation: f.recommendation, proof: f.proof,
+      })),
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `sentinel-proof-${hostname}-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
 
   return (
     <div className="space-y-6 md:space-y-8">
@@ -32,6 +59,31 @@ export function ScanResults({ result }: { result: ScanResult }) {
         </div>
       </div>
 
+      {/* Proof summary strip */}
+      <div className="border border-border bg-card rounded-md p-4 md:p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="text-[10px] uppercase tracking-[0.3em] text-primary">// Proof Engine</div>
+          <button
+            onClick={exportProofReport}
+            className="ml-auto inline-flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-primary hover:underline"
+          >
+            <Download className="h-3 w-3" /> Export proof JSON
+          </button>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+          <ProofStat label="Verified"          n={proofSummary.verified}          tone="critical" />
+          <ProofStat label="High confidence"   n={proofSummary["high-confidence"]} tone="warning" />
+          <ProofStat label="Potential"         n={proofSummary.potential}         tone="warning" />
+          <ProofStat label="Needs review"      n={proofSummary["needs-review"]}   tone="muted" />
+          <ProofStat label="Encoded / safe"    n={proofSummary["encoded-safe"]}   tone="success" />
+          <ProofStat label="Not vulnerable"    n={proofSummary["not-vulnerable"]} tone="success" />
+        </div>
+        <p className="text-[11px] text-muted-foreground mt-3 leading-relaxed">
+          Every finding includes a <span className="text-primary">Why This Is Real</span> panel with detection method,
+          safe evidence, what is confirmed vs. unconfirmed, and a safe retest. Sentinel never claims 100% exploitability without reproduction.
+        </p>
+      </div>
+
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border overflow-x-auto -mx-1 px-1 scrollbar-thin">
         <TabBtn active={tab === "ai"} onClick={() => setTab("ai")} icon={<Brain className="h-3.5 w-3.5" />}>AI Assessment</TabBtn>
@@ -44,8 +96,9 @@ export function ScanResults({ result }: { result: ScanResult }) {
       {tab === "ai" && aiReport && <AiAssessment report={aiReport} />}
       {tab === "ai" && !aiReport && <EmptyTab text="AI assessment unavailable." />}
       {tab === "history" && <HistoryView history={history} hostname={hostname} />}
-      {tab === "raw" && <RawFindings findings={findings} />}
+      {tab === "raw" && <RawFindings findings={findings} scanUrl={url} />}
     </div>
+
   );
 }
 
@@ -317,30 +370,33 @@ function HistorySection({ title, items }: { title: string; items: HistoryBundle[
 
 /* -------- Raw findings tab with filters -------- */
 
-function RawFindings({ findings }: { findings: Finding[] }) {
+function RawFindings({ findings, scanUrl }: { findings: Finding[]; scanUrl: string }) {
   const [catFilter, setCatFilter] = useState<string | null>(null);
   const [sevFilter, setSevFilter] = useState<string | null>(null);
+  const [proofFilter, setProofFilter] = useState<string | null>(null);
 
   const cats = useMemo(() => [...new Set(findings.map((f) => f.category))], [findings]);
   const filtered = useMemo(() => findings
-    .filter((f) => (!catFilter || f.category === catFilter) && (!sevFilter || f.severity === sevFilter))
+    .filter((f) => (!catFilter || f.category === catFilter) && (!sevFilter || f.severity === sevFilter) && (!proofFilter || f.proof?.level === proofFilter))
     .sort((a, b) => (SEV_ORDER[a.severity] ?? 9) - (SEV_ORDER[b.severity] ?? 9)),
-    [findings, catFilter, sevFilter]);
+    [findings, catFilter, sevFilter, proofFilter]);
 
   return (
     <div className="space-y-4">
       <div className="space-y-2.5">
         <ChipRow label="Category" value={catFilter} setValue={setCatFilter} options={cats} />
         <ChipRow label="Severity" value={sevFilter} setValue={setSevFilter} options={["critical","high","medium","low","pass"]} />
+        <ChipRow label="Proof" value={proofFilter} setValue={setProofFilter} options={["verified","high-confidence","potential","needs-review","encoded-safe","not-vulnerable"]} />
       </div>
       <div className="border border-border rounded-md bg-card divide-y divide-border">
         {filtered.length === 0 ? (
           <div className="p-6 text-center text-sm text-muted-foreground">No findings match.</div>
-        ) : filtered.map((f) => <FindingRow key={f.id} f={f} />)}
+        ) : filtered.map((f) => <FindingRow key={f.id} f={f} scanUrl={scanUrl} />)}
       </div>
     </div>
   );
 }
+
 
 /* -------- Shared bits -------- */
 
@@ -393,7 +449,7 @@ function CategoryBar({ label, score }: { label: string; score: number }) {
   );
 }
 
-function FindingRow({ f }: { f: Finding }) {
+function FindingRow({ f, scanUrl }: { f: Finding; scanUrl: string }) {
   const Icon = f.severity === "pass" ? ShieldCheck : f.severity === "critical" || f.severity === "high" ? ShieldAlert : f.severity === "medium" ? AlertTriangle : Info;
   return (
     <div className="p-4 flex gap-3">
@@ -402,16 +458,30 @@ function FindingRow({ f }: { f: Finding }) {
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-medium">{f.title}</span>
           <span className={`text-[9px] uppercase tracking-widest px-1.5 py-0.5 rounded-sm border ${sevBadge(f.severity)}`}>{f.severity}</span>
+          {f.proof && <ProofBadge proof={f.proof} />}
           <span className="text-[9px] uppercase tracking-widest text-muted-foreground ml-auto">{f.category}</span>
         </div>
         <p className="text-xs text-muted-foreground mt-1 font-mono break-words whitespace-pre-wrap">{f.detail}</p>
-        {f.recommendation && (
-          <p className="text-xs mt-2 text-foreground/80">→ {f.recommendation}</p>
-        )}
+        {f.proof && <ProofPanel finding={f} scanUrl={scanUrl} />}
       </div>
     </div>
   );
 }
+
+function ProofStat({ label, n, tone }: { label: string; n: number; tone: "critical" | "warning" | "success" | "muted" }) {
+  const toneCls =
+    tone === "critical" ? "text-critical border-critical/30" :
+    tone === "warning"  ? "text-warning border-warning/30" :
+    tone === "success"  ? "text-success border-success/30" :
+    "text-muted-foreground border-border";
+  return (
+    <div className={`border rounded-sm px-3 py-2 ${toneCls}`}>
+      <div className="text-2xl font-bold tabular-nums leading-none">{n}</div>
+      <div className="text-[9px] uppercase tracking-widest mt-1 opacity-80">{label}</div>
+    </div>
+  );
+}
+
 
 function sevBadge(s: string): string {
   const v = s.toLowerCase();
