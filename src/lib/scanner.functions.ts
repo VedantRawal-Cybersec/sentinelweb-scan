@@ -66,7 +66,9 @@ export const runPublicScan = createServerFn({ method: "POST" })
     if (!v.ok) throw new Error(v.error);
 
     const { runScan } = await import("./scanner.server");
-    const findings = await runScan(v.url, v.hostname);
+    const { attachProofs } = await import("./proof");
+    const rawFindings = await runScan(v.url, v.hostname);
+    const findings = attachProofs(rawFindings, { url: v.url, hostname: v.hostname });
     const score = calculateScore(findings);
 
     return {
@@ -77,6 +79,7 @@ export const runPublicScan = createServerFn({ method: "POST" })
       createdAt: new Date().toISOString(),
     };
   });
+
 
 // AUTHENTICATED scan — saves to user history and runs AI report + history lookup
 export const runScanAndSave = createServerFn({ method: "POST" })
