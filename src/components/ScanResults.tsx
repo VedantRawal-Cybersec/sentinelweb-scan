@@ -370,30 +370,33 @@ function HistorySection({ title, items }: { title: string; items: HistoryBundle[
 
 /* -------- Raw findings tab with filters -------- */
 
-function RawFindings({ findings }: { findings: Finding[] }) {
+function RawFindings({ findings, scanUrl }: { findings: Finding[]; scanUrl: string }) {
   const [catFilter, setCatFilter] = useState<string | null>(null);
   const [sevFilter, setSevFilter] = useState<string | null>(null);
+  const [proofFilter, setProofFilter] = useState<string | null>(null);
 
   const cats = useMemo(() => [...new Set(findings.map((f) => f.category))], [findings]);
   const filtered = useMemo(() => findings
-    .filter((f) => (!catFilter || f.category === catFilter) && (!sevFilter || f.severity === sevFilter))
+    .filter((f) => (!catFilter || f.category === catFilter) && (!sevFilter || f.severity === sevFilter) && (!proofFilter || f.proof?.level === proofFilter))
     .sort((a, b) => (SEV_ORDER[a.severity] ?? 9) - (SEV_ORDER[b.severity] ?? 9)),
-    [findings, catFilter, sevFilter]);
+    [findings, catFilter, sevFilter, proofFilter]);
 
   return (
     <div className="space-y-4">
       <div className="space-y-2.5">
         <ChipRow label="Category" value={catFilter} setValue={setCatFilter} options={cats} />
         <ChipRow label="Severity" value={sevFilter} setValue={setSevFilter} options={["critical","high","medium","low","pass"]} />
+        <ChipRow label="Proof" value={proofFilter} setValue={setProofFilter} options={["verified","high-confidence","potential","needs-review","encoded-safe","not-vulnerable"]} />
       </div>
       <div className="border border-border rounded-md bg-card divide-y divide-border">
         {filtered.length === 0 ? (
           <div className="p-6 text-center text-sm text-muted-foreground">No findings match.</div>
-        ) : filtered.map((f) => <FindingRow key={f.id} f={f} />)}
+        ) : filtered.map((f) => <FindingRow key={f.id} f={f} scanUrl={scanUrl} />)}
       </div>
     </div>
   );
 }
+
 
 /* -------- Shared bits -------- */
 
