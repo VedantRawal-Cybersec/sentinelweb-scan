@@ -205,17 +205,20 @@ export const getScanById = createServerFn({ method: "POST" })
         aiReport = rawAi as AiReport;
       }
     }
+    const { attachProofs } = await import("./proof");
+    const withProof = attachProofs(findings, { url: row.url, hostname: row.hostname });
     return {
       id: row.id,
       url: row.url,
       hostname: row.hostname,
-      score: calculateScore(findings),
-      findings,
+      score: calculateScore(withProof),
+      findings: withProof,
       aiReport,
       history,
       createdAt: row.created_at,
     };
   });
+
 
 export const deleteScan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
