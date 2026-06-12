@@ -449,7 +449,7 @@ function CategoryBar({ label, score }: { label: string; score: number }) {
   );
 }
 
-function FindingRow({ f }: { f: Finding }) {
+function FindingRow({ f, scanUrl }: { f: Finding; scanUrl: string }) {
   const Icon = f.severity === "pass" ? ShieldCheck : f.severity === "critical" || f.severity === "high" ? ShieldAlert : f.severity === "medium" ? AlertTriangle : Info;
   return (
     <div className="p-4 flex gap-3">
@@ -458,16 +458,30 @@ function FindingRow({ f }: { f: Finding }) {
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-medium">{f.title}</span>
           <span className={`text-[9px] uppercase tracking-widest px-1.5 py-0.5 rounded-sm border ${sevBadge(f.severity)}`}>{f.severity}</span>
+          {f.proof && <ProofBadge proof={f.proof} />}
           <span className="text-[9px] uppercase tracking-widest text-muted-foreground ml-auto">{f.category}</span>
         </div>
         <p className="text-xs text-muted-foreground mt-1 font-mono break-words whitespace-pre-wrap">{f.detail}</p>
-        {f.recommendation && (
-          <p className="text-xs mt-2 text-foreground/80">→ {f.recommendation}</p>
-        )}
+        {f.proof && <ProofPanel finding={f} scanUrl={scanUrl} />}
       </div>
     </div>
   );
 }
+
+function ProofStat({ label, n, tone }: { label: string; n: number; tone: "critical" | "warning" | "success" | "muted" }) {
+  const toneCls =
+    tone === "critical" ? "text-critical border-critical/30" :
+    tone === "warning"  ? "text-warning border-warning/30" :
+    tone === "success"  ? "text-success border-success/30" :
+    "text-muted-foreground border-border";
+  return (
+    <div className={`border rounded-sm px-3 py-2 ${toneCls}`}>
+      <div className="text-2xl font-bold tabular-nums leading-none">{n}</div>
+      <div className="text-[9px] uppercase tracking-widest mt-1 opacity-80">{label}</div>
+    </div>
+  );
+}
+
 
 function sevBadge(s: string): string {
   const v = s.toLowerCase();
