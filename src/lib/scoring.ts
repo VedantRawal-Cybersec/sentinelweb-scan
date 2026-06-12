@@ -2,6 +2,34 @@
 
 export type Severity = "critical" | "high" | "medium" | "low" | "info" | "pass";
 
+export type ProofLevel =
+  | "verified"
+  | "high-confidence"
+  | "potential"
+  | "needs-review"
+  | "encoded-safe"
+  | "not-vulnerable";
+
+export interface Proof {
+  level: ProofLevel;
+  label: string;
+  score: number; // 0-100
+  detectionMethod: string;
+  module: string;
+  testedUrl?: string;
+  parameter?: string;
+  context?: string;
+  evidence: string[];
+  confirmed: string[];
+  notConfirmed: string[];
+  missing: string[];
+  toolsAgreed: number;
+  reproduced: boolean;
+  manualReviewRequired: boolean;
+  outcome: string;
+  detectedAt: string;
+}
+
 export interface Finding {
   id: string;
   category: "headers" | "tls" | "dns" | "reputation" | "exposure" | "cookies";
@@ -10,6 +38,24 @@ export interface Finding {
   detail: string;
   penalty: number;
   recommendation?: string;
+  proof?: Proof;
+}
+
+export const PROOF_LABEL: Record<ProofLevel, string> = {
+  verified: "Verified Finding",
+  "high-confidence": "High-Confidence Finding",
+  potential: "Potential Risk",
+  "needs-review": "Needs Manual Review",
+  "encoded-safe": "Encoded — Not Exploitable",
+  "not-vulnerable": "Not Vulnerable Under Current Scan",
+};
+
+export function proofLevelFromScore(score: number): ProofLevel {
+  if (score >= 90) return "verified";
+  if (score >= 70) return "high-confidence";
+  if (score >= 40) return "potential";
+  if (score >= 1) return "needs-review";
+  return "not-vulnerable";
 }
 
 export interface ScoreBreakdown {
