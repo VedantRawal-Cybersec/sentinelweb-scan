@@ -233,7 +233,27 @@ export const deleteScan = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+// Safe retest: re-runs the same URL scan and returns the (possibly updated) finding.
+// Does NOT mutate stored history. Public — same constraints as runPublicScan.
+export const retestFinding = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => {
+    const v = input as { url?: string; findingId?: string };
+    if (!v?.url || !v?.findingId) throw new Error("url and findingId required");
+    return { url: v.url, findingId: v.findingId };
+  })
+  .handler(async ({ data }): Promise<{ finding: Finding | null; allFindings: Finding[] }> => {
+    const v = validateScanUrl(data.url);
+    if (!v.ok) throw new Error(v.error);
+    const { runScan } = await import("./scanner.server");
+    const { attachProofs } = await import("./proof");
+    const raw = await runScan(v.url, v.hostname);
+    const all = attachProofs(raw, { url: v.url, hostname: v.hostname });
+    const finding = all.find((f) => f.id === data.findingId) ?? null;
+    return { finding, allFindings: all };
+  });
+
 // PUBLIC health check for /status page
+
 export const healthCheck = createServerFn({ method: "GET" })
   .handler(async () => {
     const start = Date.now();
