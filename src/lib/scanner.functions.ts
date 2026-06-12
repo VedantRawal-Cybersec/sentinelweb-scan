@@ -94,7 +94,9 @@ export const runScanAndSave = createServerFn({ method: "POST" })
     if (!v.ok) throw new Error(v.error);
 
     const { runScan } = await import("./scanner.server");
-    const findings = await runScan(v.url, v.hostname);
+    const { attachProofs } = await import("./proof");
+    const rawFindings = await runScan(v.url, v.hostname);
+    const findings = attachProofs(rawFindings, { url: v.url, hostname: v.hostname });
     const score = calculateScore(findings);
 
     // Run AI report + history lookups in parallel
