@@ -45,6 +45,8 @@ export function ScanResults({ result }: { result: ScanResult }) {
 
   return (
     <div className="space-y-6 md:space-y-8">
+      <ReportEnhancements result={result} />
+
       {/* Score card */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-px bg-border rounded-md overflow-hidden">
         <div className="lg:col-span-1 bg-card p-6 md:p-8 flex flex-col items-center justify-center">
