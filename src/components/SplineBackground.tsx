@@ -31,14 +31,24 @@ function useShouldRender3D() {
   const [ok, setOk] = useState(false);
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const isSmall = window.matchMedia("(max-width: 900px)").matches;
+    const isSmall = window.matchMedia("(max-width: 1280px)").matches;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const conn = (navigator as any).connection;
-    const slow = conn && (conn.saveData || /2g|3g/.test(conn.effectiveType ?? ""));
-    const lowMem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory != null && (navigator as Navigator & { deviceMemory?: number }).deviceMemory! < 4;
-    if (isSmall || reduced || slow || lowMem) return;
-    setOk(true);
+    const slow = conn && (conn.saveData || /2g|3g|slow-2g/.test(conn.effectiveType ?? ""));
+    const mem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
+    const lowMem = mem != null && mem < 8;
+    const lowCpu = (navigator.hardwareConcurrency ?? 8) < 6;
+    if (isSmall || reduced || slow || lowMem || lowCpu) return;
+    // Defer to idle so the landing paint isn't blocked by Spline init
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ric: any = (window as any).requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 1200));
+    const handle = ric(() => setOk(true), { timeout: 2500 });
+    return () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cic: any = (window as any).cancelIdleCallback;
+      if (cic) cic(handle); else clearTimeout(handle);
+    };
   }, []);
   return ok;
 }
