@@ -454,20 +454,62 @@ function CategoryBar({ label, score }: { label: string; score: number }) {
 
 function FindingRow({ f, scanUrl }: { f: Finding; scanUrl: string }) {
   const Icon = f.severity === "pass" ? ShieldCheck : f.severity === "critical" || f.severity === "high" ? ShieldAlert : f.severity === "medium" ? AlertTriangle : Info;
+  const [fixed, setFixed] = useState(false);
+
+  function copyProof() {
+    const lines = [
+      `[${f.severity.toUpperCase()}] ${f.title}`,
+      `Category: ${f.category}`,
+      `Target: ${scanUrl}`,
+      `Detail: ${f.detail}`,
+      f.recommendation ? `Fix: ${f.recommendation}` : "",
+      f.proof ? `Confidence: ${f.proof.label} (${f.proof.score}/100)` : "",
+    ].filter(Boolean).join("\n");
+    navigator.clipboard?.writeText(lines).then(() => toast.success("Proof copied"), () => toast.error("Copy failed"));
+  }
+
+  function exportFinding() {
+    const blob = new Blob([JSON.stringify({ ...f, scanUrl }, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `finding-${f.id}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
   return (
-    <div className="p-4 flex gap-3">
+    <div className={`p-4 flex gap-3 transition ${fixed ? "opacity-60" : ""}`}>
       <Icon className={`h-4 w-4 mt-0.5 shrink-0 ${SEVERITY_COLORS[f.severity]}`} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-medium">{f.title}</span>
+          <span className={`text-sm font-medium ${fixed ? "line-through" : ""}`}>{f.title}</span>
           <span className={`text-[9px] uppercase tracking-widest px-1.5 py-0.5 rounded-sm border ${sevBadge(f.severity)}`}>{f.severity}</span>
           {f.proof && <ProofBadge proof={f.proof} />}
+          {fixed && <span className="text-[9px] uppercase tracking-widest px-1.5 py-0.5 rounded-sm border border-success/30 text-success bg-success/10">Marked fixed</span>}
           <span className="text-[9px] uppercase tracking-widest text-muted-foreground ml-auto">{f.category}</span>
         </div>
         <p className="text-xs text-muted-foreground mt-1 font-mono break-words whitespace-pre-wrap">{f.detail}</p>
         {f.proof && <ProofPanel finding={f} scanUrl={scanUrl} />}
+        {f.severity !== "pass" && (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            <ActionBtn onClick={copyProof} icon={<Download className="h-3 w-3" />}>Copy proof</ActionBtn>
+            <ActionBtn onClick={exportFinding} icon={<Download className="h-3 w-3" />}>Export</ActionBtn>
+            <ActionBtn onClick={() => setFixed((v) => !v)}>{fixed ? "Undo fixed" : "Mark fixed"}</ActionBtn>
+          </div>
+        )}
       </div>
     </div>
+  );
+}
+
+function ActionBtn({ onClick, icon, children }: { onClick: () => void; icon?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest px-2 py-1 rounded-sm border border-border text-muted-foreground hover:border-primary hover:text-primary transition"
+    >
+      {icon}{children}
+    </button>
   );
 }
 
