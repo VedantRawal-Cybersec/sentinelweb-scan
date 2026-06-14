@@ -7,9 +7,8 @@ import {
   History, ExternalLink, Filter, ArrowUpDown, Download,
 } from "lucide-react";
 import { ProofPanel, ProofBadge } from "./ProofPanel";
-
-
-type Tab = "ai" | "history" | "raw";
+import { ReportEnhancements } from "./ReportEnhancements";
+import { toast } from "sonner";
 
 const SEV_ORDER: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4, pass: 5 };
 
