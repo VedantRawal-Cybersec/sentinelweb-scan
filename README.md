@@ -119,6 +119,12 @@ Add strong browser security headers to reduce exposure to common web-based attac
 ```
 
 ---
+<img width="1898" height="820" alt="image" src="https://github.com/user-attachments/assets/9c979a7a-8ac9-4e1c-a003-b2df9060dd12" />
+<img width="1892" height="817" alt="image" src="https://github.com/user-attachments/assets/7617bb73-813b-487f-a867-b5e847c30d4a" />
+<img width="1870" height="817" alt="image" src="https://github.com/user-attachments/assets/fc173d18-0e2e-46f4-aa87-1d3f37839025" />
+<img width="1882" height="816" alt="image" src="https://github.com/user-attachments/assets/54512c61-c5a4-4667-beaa-73659a859222" />
+<img width="1162" height="817" alt="image" src="https://github.com/user-attachments/assets/b618b9be-1324-40a9-82b4-b7f841539295" />
+
 
 ## Security Use Cases
 
