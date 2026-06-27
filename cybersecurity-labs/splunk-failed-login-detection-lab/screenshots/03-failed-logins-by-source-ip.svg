@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720">
+  <rect width="1200" height="720" fill="#0b1120"/>
+  <rect x="50" y="50" width="1100" height="620" rx="22" fill="#111827" stroke="#38bdf8" stroke-width="3"/>
+  <text x="80" y="110" font-family="Arial" font-size="36" font-weight="700" fill="#f8fafc">Failed Logins by Source IP</text>
+  <text x="80" y="155" font-family="Arial" font-size="20" fill="#94a3b8">index=failed_login_lab action=failure | stats count by src_ip | sort - count</text>
+  <g font-family="Arial" font-size="23" fill="#e5e7eb">
+    <text x="100" y="220" font-weight="700" fill="#93c5fd">Source IP</text><text x="520" y="220" font-weight="700" fill="#93c5fd">Failed Count</text><text x="760" y="220" font-weight="700" fill="#93c5fd">Risk Note</text>
+    <line x1="90" y1="238" x2="1110" y2="238" stroke="#334155"/>
+    <text x="100" y="280">45.77.32.11</text><text x="560" y="280" fill="#fb7185" font-weight="700">45</text><text x="760" y="280">Highest-risk source; later successful login</text>
+    <text x="100" y="330">185.220.101.23</text><text x="560" y="330" fill="#f97316" font-weight="700">30</text><text x="760" y="330">High-volume failed login source</text>
+    <text x="100" y="380">10.10.5.23</text><text x="560" y="380">6</text><text x="760" y="380">Low-to-medium internal activity</text>
+    <text x="100" y="430">10.10.5.22</text><text x="560" y="430">4</text><text x="760" y="430">Low volume</text>
+    <text x="100" y="480">10.10.5.24</text><text x="560" y="480">4</text><text x="760" y="480">Low volume</text>
+    <text x="100" y="530">10.10.5.25</text><text x="560" y="530">4</text><text x="760" y="530">Low volume</text>
+    <text x="100" y="580">10.10.5.21</text><text x="560" y="580">3</text><text x="760" y="580">Low volume</text>
+  </g>
+</svg>
